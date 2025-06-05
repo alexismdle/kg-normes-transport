@@ -4,6 +4,76 @@ import sys
 import os
 import openai
 import json
+from transformers import T5Tokenizer, T5ForConditionalGeneration
+
+
+def generate_knowledge_graph_hf(text_content: str) -> list | None:
+    """
+    Generates a knowledge graph from text content using a Hugging Face T5 model.
+
+    Args:
+        text_content: The text to process.
+
+    Returns:
+        A list representing the JSON knowledge graph, or None if an error occurred.
+    """
+    model_name = "google/flan-t5-base"
+    try:
+        tokenizer = T5Tokenizer.from_pretrained(model_name)
+        model = T5ForConditionalGeneration.from_pretrained(model_name)
+    except Exception as e:
+        print(f"Error loading Hugging Face model or tokenizer: {e}")
+        # This error will likely occur due to the previous installation failure.
+        return None
+
+    prompt = f"""
+Extract entities and their relationships from the following text.
+Format the output as a JSON array, where each object has EXACTLY these keys: "head", "head_type", "relation", "tail", "tail_type".
+The "head" is the source entity.
+The "head_type" is the category or type of the source entity (e.g., Person, Organization, Location, Concept, Product, Event).
+The "relation" is the relationship between the head and the tail entity (e.g., works_at, located_in, part_of, is_a, produces, owns).
+The "tail" is the target entity.
+The "tail_type" is the category or type of the target entity.
+
+If no relationships are found, output an empty JSON array: [].
+Do not include any explanations or introductory text outside the JSON array itself.
+
+Text:
+{text_content}
+
+JSON Output:
+"""
+    try:
+        input_ids = tokenizer(prompt, return_tensors="pt", max_length=2048, truncation=True).input_ids
+        outputs = model.generate(input_ids, max_length=1024, num_beams=4, early_stopping=True)
+        raw_output_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    except Exception as e:
+        print(f"Error during Hugging Face model inference: {e}")
+        # This error will also likely occur.
+        return None
+
+    try:
+        json_start_index = raw_output_text.find('[')
+        json_end_index = raw_output_text.rfind(']')
+
+        if json_start_index != -1 and json_end_index != -1 and json_start_index < json_end_index:
+            json_string = raw_output_text[json_start_index : json_end_index + 1]
+            parsed_json = json.loads(json_string)
+            if isinstance(parsed_json, list):
+                return parsed_json
+            else:
+                print(f"Parsed JSON is not a list: {parsed_json}")
+                return None
+        else:
+            print(f"Could not find valid JSON array in model output: {raw_output_text}")
+            return None
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON from model output: {e}")
+        print(f"Raw output was: {raw_output_text}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred while parsing Hugging Face model output: {e}")
+        return None
 
 def get_knowledge_graph_from_text(text_content: str, api_key: str):
     """
