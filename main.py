@@ -1,10 +1,10 @@
 import argparse
 import os
 import json # For pretty printing the final JSON
-from scraper import scrape_website, get_knowledge_graph_from_text
+from scraper import scrape_website, generate_knowledge_graph_hf
 
 def main():
-    parser = argparse.ArgumentParser(description="Scrape a website and generate a knowledge graph using OpenAI.")
+    parser = argparse.ArgumentParser(description="Scrape a website and generate a knowledge graph using a Hugging Face model.")
     parser.add_argument("url", help="The URL of the website to scrape.")
     args = parser.parse_args()
 
@@ -13,7 +13,7 @@ def main():
 
     if scraped_content is None:
         print("Failed to scrape the website. Exiting.")
-        return 
+        return
 
     print("Website scraped successfully. Raw text content extracted.")
 
@@ -23,20 +23,15 @@ def main():
         print("Scraped content saved to content.txt")
     except IOError as e:
         print(f"Error saving content to content.txt: {e}")
-        return 
+        return
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print("OPENAI_API_KEY environment variable not set. Cannot generate knowledge graph.")
-        print("Scraped text is available in content.txt")
-        return 
-
-    print("Attempting to generate knowledge graph with OpenAI...")
-    knowledge_graph = get_knowledge_graph_from_text(scraped_content, api_key)
+    print("Attempting to generate knowledge graph with Hugging Face model (google/flan-t5-base)...")
+    print("This may take some time depending on your hardware and the size of the content...")
+    knowledge_graph = generate_knowledge_graph_hf(scraped_content)
 
     if knowledge_graph is None:
-        print("Failed to generate knowledge graph from OpenAI. Raw scraped text is in content.txt.")
-        return 
+        print("Failed to generate knowledge graph using the Hugging Face model. Raw scraped text is in content.txt.")
+        return
 
     print("Knowledge graph generated successfully:")
     print(json.dumps(knowledge_graph, indent=2)) # Pretty print the JSON
